@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maintenance · {{ site_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">
+      <span class="brand-mark">{{ site_name[0]|upper }}</span>
+      {{ site_name }}
+    </span>
+  </header>
+
+  <main class="main-container">
+    <section class="maintenance-box">
+      <p class="eyebrow">UNDER MAINTENANCE</p>
+      <h1>We'll be back soon</h1>
+      <p>The site is down for maintenance right now. Please check back in a little while.</p>
+      {% if user %}
+        <a class="button button-quiet" href="{{ url_for('logout') }}">Log out</a>
+      {% else %}
+        <a class="button button-discord" href="{{ url_for('login') }}">Staff login</a>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>

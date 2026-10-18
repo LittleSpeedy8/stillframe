@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ video.title }} · {{ site_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include '_header.html' %}
+
+  <main class="main-container page">
+    <section class="player-section">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">VIDEO #{{ video.id }}</p>
+          <h1>{{ video.title }}</h1>
+        </div>
+        {% if is_latest %}
+          <span class="live-label"><span></span> LATEST UPLOAD</span>
+        {% endif %}
+      </div>
+
+      <div class="player-frame">
+        <video class="centered-player" controls preload="metadata">
+          <source src="{{ url_for('static', filename='videos/' ~ video.filename) }}"
+                  type="{{ video.mime }}">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+
+      <div class="video-meta">
+        <span>Uploaded by {{ video.uploader_name }}</span>
+        <span>{{ video.uploaded }}</span>
+        <span>{{ video.size_mb }} MB</span>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-messages">
+            {% for category, message in messages %}
+              <p class="flash-message flash-{{ category }}">{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <div class="page-actions">
+        <button class="button button-quiet" type="button" id="copy-link">Copy link</button>
+        {% if can_delete %}
+          <form method="POST" action="{{ url_for('delete_video', video_id=video.id) }}"
+                onsubmit="return confirm('Delete this video permanently?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="button button-danger" type="submit">Delete video</button>
+          </form>
+        {% endif %}
+      </div>
+
+      <nav class="nav-links" aria-label="Video navigation">
+        {% if older_id %}
+          <a href="{{ url_for('view_video', video_id=older_id) }}">&larr; Older</a>
+        {% else %}
+          <span></span>
+        {% endif %}
+        <a href="{{ url_for('index') }}">Latest</a>
+        {% if newer_id %}
+          <a href="{{ url_for('view_video', video_id=newer_id) }}">Newer &rarr;</a>
+        {% else %}
+          <span></span>
+        {% endif %}
+      </nav>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>{{ site_name|upper }}</span>
+    <span>Built with Flask</span>
+  </footer>
+
+  <script>
+    var copyBtn = document.getElementById('copy-link');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function () {
+        navigator.clipboard.writeText(window.location.href).then(function () {
+          copyBtn.textContent = 'Copied!';
+          setTimeout(function () { copyBtn.textContent = 'Copy link'; }, 1600);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<header class="topbar">
+  <a class="brand" href="{{ url_for('index') }}">
+    <span class="brand-mark">{{ site_name[0]|upper }}</span>
+    {{ site_name }}
+  </a>
+
+  <div class="account-area">
+    {% if user %}
+      <details class="user-menu" id="user-menu">
+        <summary class="user-trigger">
+          {% if user.avatar %}
+            <img class="avatar"
+                 src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png?size=64"
+                 alt="">
+          {% endif %}
+          <span class="account-name">{{ user.username }}</span>
+          <svg class="chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </summary>
+
+        <div class="user-dropdown">
+          <a class="dropdown-item" href="{{ url_for('upload_file') }}">Upload video</a>
+          <a class="dropdown-item" href="{{ url_for('my_videos') }}">My videos</a>
+          {% if is_staff %}
+            <a class="dropdown-item" href="{{ url_for('admin') }}">Admin panel</a>
+          {% endif %}
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-item dropdown-item-danger" href="{{ url_for('logout') }}">Log out</a>
+        </div>
+      </details>
+    {% else %}
+      <a class="button button-discord" href="{{ url_for('login') }}">Login with Discord</a>
+    {% endif %}
+  </div>
+</header>
+
+<script>
+  (function () {
+    var menu = document.getElementById('user-menu');
+    if (!menu) return;
+    document.addEventListener('click', function (e) {
+      if (menu.open && !menu.contains(e.target)) menu.open = false;
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') menu.open = false;
+    });
+  })();
+</script>

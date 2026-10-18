@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin · {{ site_name }}</title>
+  <script>document.documentElement.classList.add('js');</script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include '_header.html' %}
+
+  <main class="main-container admin">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">ADMIN</p>
+        <h1>Control panel</h1>
+      </div>
+      <span class="live-label">{{ role|upper }}</span>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <p class="flash-message flash-{{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <nav class="tabs" role="tablist" aria-label="Admin sections">
+      <button class="tab-btn" role="tab" type="button" data-tab="overview">Overview</button>
+      <button class="tab-btn" role="tab" type="button" data-tab="videos">
+        Videos <span class="tab-count">{{ stats.videos }}</span>
+      </button>
+      <button class="tab-btn" role="tab" type="button" data-tab="bans">
+        Bans <span class="tab-count">{{ bans|length }}</span>
+      </button>
+      {% if role == 'owner' %}
+        <button class="tab-btn" role="tab" type="button" data-tab="people">
+          People <span class="tab-count">{{ stats.people }}</span>
+        </button>
+      {% endif %}
+      <button class="tab-btn" role="tab" type="button" data-tab="site">Site</button>
+    </nav>
+
+    <!-- ------------------------------------------------------ OVERVIEW -->
+    <section class="tab-panel" id="tab-overview" role="tabpanel">
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-label">VIDEOS</span>
+          <span class="stat-value">{{ stats.videos }}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">STORAGE</span>
+          <span class="stat-value">{{ stats.size_mb }}<small> MB</small></span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">PEOPLE</span>
+          <span class="stat-value">{{ stats.people }}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">SITE STATUS</span>
+          <span class="stat-value stat-status {{ 'is-down' if maintenance else 'is-live' }}">
+            <span class="status-dot"></span>{{ 'Maintenance' if maintenance else 'Live' }}
+          </span>
+        </div>
+      </div>
+
+      <div class="panel-grid">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Latest uploads</h2>
+              <p class="panel-sub">The newest five videos on the site.</p>
+            </div>
+            <button class="button button-quiet" type="button" data-tab-link="videos">View all</button>
+          </div>
+
+          {% if videos %}
+            <ul class="mini-list">
+              {% for video in videos[:5] %}
+                <li class="mini-row">
+                  <span class="cell-id">#{{ video.id }}</span>
+                  <div class="mini-main">
+                    <a class="mini-title" href="{{ url_for('view_video', video_id=video.id) }}">{{ video.title }}</a>
+                    <p class="mini-meta">{{ video.uploader_name }} · {{ video.uploaded }}</p>
+                  </div>
+                  {% if loop.first %}<span class="status-pill status-off">LIVE</span>{% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="panel-empty">No videos uploaded yet.</p>
+          {% endif %}
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Site status</h2>
+              <p class="panel-sub">Quick look at how the site is running.</p>
+            </div>
+            <button class="button button-quiet" type="button" data-tab-link="site">Manage</button>
+          </div>
+
+          <div class="maintenance-state {{ 'is-down' if maintenance else 'is-live' }}">
+            <span class="status-dot"></span>
+            {{ 'Maintenance mode is ON' if maintenance else 'Site is live' }}
+          </div>
+
+          <ul class="mini-list">
+            <li class="mini-row">
+              <div class="mini-main">
+                <p class="mini-title">Who can upload</p>
+                <p class="mini-meta">
+                  {{ 'Any logged-in user' if open_uploads else 'Approved people only' }}
+                </p>
+              </div>
+            </li>
+            <li class="mini-row">
+              <div class="mini-main">
+                <p class="mini-title">Banned accounts</p>
+                <p class="mini-meta">{{ bans|length }} banned from uploading</p>
+              </div>
+              <button class="button button-quiet" type="button" data-tab-link="bans">Open</button>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------- VIDEOS -->
+    <section class="tab-panel" id="tab-videos" role="tabpanel">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Videos</h2>
+            <p class="panel-sub">The highest ID is the one shown on the homepage.</p>
+          </div>
+        </div>
+
+        {% if videos %}
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title</th>
+                  <th>Uploader</th>
+                  <th>Uploaded</th>
+                  <th>Size</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for video in videos %}
+                  <tr>
+                    <td class="cell-id">#{{ video.id }}</td>
+                    <td class="cell-title">
+                      <a href="{{ url_for('view_video', video_id=video.id) }}">{{ video.title }}</a>
+                      {% if loop.first %}<span class="status-pill status-off">LIVE</span>{% endif %}
+                    </td>
+                    <td>{{ video.uploader_name }}</td>
+                    <td class="cell-nowrap">{{ video.uploaded }}</td>
+                    <td class="cell-nowrap">{{ video.size_mb }} MB</td>
+                    <td class="cell-actions">
+                      <a class="button button-quiet" href="{{ url_for('view_video', video_id=video.id) }}">View</a>
+                      <form method="POST" action="{{ url_for('delete_video', video_id=video.id) }}"
+                            onsubmit="return confirm('Delete this video permanently?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="next" value="admin">
+                        <button class="button button-danger" type="submit">Delete</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="panel-empty">No videos uploaded.</p>
+        {% endif %}
+      </section>
+    </section>
+
+    <!-- --------------------------------------------------------- BANS -->
+    <section class="tab-panel" id="tab-bans" role="tabpanel">
+      <div class="panel-grid">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Ban from uploading</h2>
+              <p class="panel-sub">
+                Banned people can't upload, even if they're on the uploader list.
+                They can still watch videos and delete their own.
+              </p>
+            </div>
+          </div>
+
+          <form class="stack-form" method="POST" action="{{ url_for('admin_ban_add') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input class="text-input" type="text" name="user_id" placeholder="Discord ID"
+                   inputmode="numeric" pattern="\d{17,20}" required>
+            <input class="text-input" type="text" name="reason" placeholder="Reason (optional)" maxlength="120">
+            <button class="button button-danger wide" type="submit">Ban from uploading</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Banned accounts</h2>
+              <p class="panel-sub">{{ bans|length }} account{{ '' if bans|length == 1 else 's' }} banned.</p>
+            </div>
+          </div>
+
+          {% if bans %}
+            <ul class="people-list flush">
+              {% for ban in bans %}
+                <li class="person">
+                  <span class="person-avatar">{{ (ban.name or ban.id)[0]|upper }}</span>
+                  <div class="person-main">
+                    <p class="person-name">{{ ban.name or 'Unknown name' }}</p>
+                    <p class="person-id">
+                      {{ ban.id }}{% if ban.reason %} · {{ ban.reason }}{% endif %}{% if ban.at %} · {{ ban.at }}{% endif %}
+                    </p>
+                  </div>
+                  <form method="POST" action="{{ url_for('admin_ban_remove') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="user_id" value="{{ ban.id }}">
+                    <button class="button button-quiet" type="submit">Unban</button>
+                  </form>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="panel-empty">No one is banned.</p>
+          {% endif %}
+        </section>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------- PEOPLE -->
+    {% if role == 'owner' %}
+    <section class="tab-panel" id="tab-people" role="tabpanel">
+      <div class="panel-grid">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Add a person</h2>
+              <p class="panel-sub">
+                Uploaders can upload. Mods can also delete videos, ban accounts and use maintenance mode.
+                To copy a Discord ID: Settings → Advanced → Developer Mode, then right-click the person → Copy User ID.
+              </p>
+            </div>
+          </div>
+
+          <form class="stack-form" method="POST" action="{{ url_for('admin_add_user') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input class="text-input" type="text" name="user_id" placeholder="Discord ID"
+                   inputmode="numeric" pattern="\d{17,20}" required>
+            <input class="text-input" type="text" name="label" placeholder="Name (optional)" maxlength="40">
+            <div class="stack-row">
+              <select class="text-input" name="role">
+                <option value="uploader">Uploader</option>
+                <option value="mod">Mod</option>
+              </select>
+              <button class="button button-upload" type="submit">Add</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Team</h2>
+              <p class="panel-sub">{{ stats.people }} {{ 'person' if stats.people == 1 else 'people' }} with access.</p>
+            </div>
+          </div>
+
+          <ul class="people-list flush">
+            <li class="person">
+              <span class="person-avatar">O</span>
+              <div class="person-main">
+                <p class="person-name">Owner <span class="status-pill status-off">OWNER</span></p>
+                <p class="person-id">{{ owner_id }}</p>
+              </div>
+            </li>
+            {% for person in users %}
+              <li class="person">
+                <span class="person-avatar">{{ (person.label or person.id)[0]|upper }}</span>
+                <div class="person-main">
+                  <p class="person-name">
+                    {{ person.label or 'Unnamed' }}
+                    <span class="status-pill">{{ person.role|upper }}</span>
+                    {% if person.banned %}<span class="status-pill status-on">BANNED</span>{% endif %}
+                  </p>
+                  <p class="person-id">{{ person.id }}</p>
+                </div>
+                <form method="POST" action="{{ url_for('admin_remove_user') }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="user_id" value="{{ person.id }}">
+                  <button class="button button-quiet" type="submit">Remove</button>
+                </form>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- --------------------------------------------------------- SITE -->
+    <section class="tab-panel" id="tab-site" role="tabpanel">
+      <div class="panel-grid">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Maintenance mode</h2>
+              <p class="panel-sub">Visitors see a maintenance page. The owner and mods can still use the site.</p>
+            </div>
+          </div>
+
+          <div class="maintenance-state {{ 'is-down' if maintenance else 'is-live' }}">
+            <span class="status-dot"></span>
+            {{ 'Maintenance mode is ON' if maintenance else 'Site is live' }}
+          </div>
+
+          <form method="POST" action="{{ url_for('admin_maintenance') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="enabled" value="{{ '0' if maintenance else '1' }}">
+            <button class="button wide {{ 'button-upload' if maintenance else 'button-danger' }}" type="submit">
+              {{ 'Turn off maintenance' if maintenance else 'Turn on maintenance' }}
+            </button>
+          </form>
+        </section>
+
+        {% if role == 'owner' %}
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Open uploads</h2>
+              <p class="panel-sub">
+                When on, any logged-in user can upload. When off, only the owner, mods and uploaders can.
+                Banned accounts can never upload.
+              </p>
+            </div>
+          </div>
+
+          <div class="maintenance-state {{ 'is-down' if open_uploads else 'is-live' }}">
+            <span class="status-dot"></span>
+            {{ 'Open to any logged-in user' if open_uploads else 'Approved people only' }}
+          </div>
+
+          <form method="POST" action="{{ url_for('admin_open_uploads') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="enabled" value="{{ '0' if open_uploads else '1' }}">
+            <button class="button button-quiet wide" type="submit">
+              {{ 'Turn off open uploads' if open_uploads else 'Turn on open uploads' }}
+            </button>
+          </form>
+        </section>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab-btn'));
+      var panels = Array.prototype.slice.call(document.querySelectorAll('.tab-panel'));
+      var names = tabs.map(function (t) { return t.dataset.tab; });
+      var KEY = 'admin-tab';
+
+      function show(name, focus) {
+        if (names.indexOf(name) === -1) name = 'overview';
+        tabs.forEach(function (t) {
+          var on = t.dataset.tab === name;
+          t.classList.toggle('is-active', on);
+          t.setAttribute('aria-selected', on ? 'true' : 'false');
+          t.tabIndex = on ? 0 : -1;
+          if (on && focus) t.focus();
+        });
+        panels.forEach(function (p) {
+          p.classList.toggle('is-active', p.id === 'tab-' + name);
+        });
+        try { sessionStorage.setItem(KEY, name); } catch (e) {}
+        if (history.replaceState) history.replaceState(null, '', '#' + name);
+      }
+
+      tabs.forEach(function (tab, i) {
+        tab.addEventListener('click', function () { show(tab.dataset.tab); });
+        tab.addEventListener('keydown', function (e) {
+          var next = null;
+          if (e.key === 'ArrowRight') next = (i + 1) % tabs.length;
+          if (e.key === 'ArrowLeft') next = (i - 1 + tabs.length) % tabs.length;
+          if (e.key === 'Home') next = 0;
+          if (e.key === 'End') next = tabs.length - 1;
+          if (next !== null) {
+            e.preventDefault();
+            show(tabs[next].dataset.tab, true);
+          }
+        });
+      });
+
+      Array.prototype.forEach.call(document.querySelectorAll('[data-tab-link]'), function (el) {
+        el.addEventListener('click', function () {
+          show(el.dataset.tabLink);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      });
+
+      var start = location.hash.replace('#', '');
+      if (names.indexOf(start) === -1) {
+        try { start = sessionStorage.getItem(KEY) || ''; } catch (e) { start = ''; }
+      }
+      show(start || 'overview');
+    })();
+  </script>
+</body>
+</html>

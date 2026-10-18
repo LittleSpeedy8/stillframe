@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Upload · {{ site_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include '_header.html' %}
+
+  <main class="main-container page upload-page">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">UPLOAD</p>
+        <h1>Upload a video</h1>
+      </div>
+    </div>
+
+    {% if upload_state == 'allowed' %}
+      <div class="access-card">
+        <span class="status-dot"></span>
+        <div>
+          <p class="access-title">You can upload videos</p>
+          <p class="access-text">Signed in as {{ user.username }}. Your video goes live as soon as it finishes uploading.</p>
+        </div>
+      </div>
+    {% elif upload_state == 'banned' %}
+      <div class="access-card is-down">
+        <span class="status-dot"></span>
+        <div>
+          <p class="access-title">You're banned from uploading</p>
+          <p class="access-text">
+            {% if ban_reason %}Reason: {{ ban_reason }}. {% endif %}
+            You can still watch videos and manage the ones you've already uploaded. Contact an admin if you think this is a mistake.
+          </p>
+        </div>
+      </div>
+    {% elif upload_state == 'restricted' %}
+      <div class="access-card is-down">
+        <span class="status-dot"></span>
+        <div>
+          <p class="access-title">Uploads are restricted</p>
+          <p class="access-text">Your account isn't on the uploader list. Ask an admin to add your Discord ID.</p>
+        </div>
+      </div>
+    {% else %}
+      <div class="access-card">
+        <div>
+          <p class="access-title">Log in to upload</p>
+          <p class="access-text">Sign in with Discord so we can check your upload access.</p>
+        </div>
+        <a class="button button-discord" href="{{ url_for('login') }}">Login with Discord</a>
+      </div>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <p class="flash-message flash-{{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% if upload_state == 'allowed' %}
+      <section class="upload-card">
+        <form id="upload-form" action="{{ url_for('upload_file') }}" method="POST"
+              enctype="multipart/form-data" data-max-bytes="{{ max_upload_mb * 1048576 }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+          <label class="dropzone" id="dropzone">
+            <span class="dropzone-icon">&#8593;</span>
+            <p class="dropzone-title" id="dz-title">Drop a video here or click to choose</p>
+            <p class="dropzone-sub" id="dz-sub">MP4, WebM or Ogg, up to {{ max_upload_mb }} MB</p>
+            <input type="file" name="video" id="video-input"
+                   accept="video/mp4,video/webm,video/ogg" required>
+          </label>
+
+          <label class="field-label" for="title-input">TITLE (OPTIONAL)</label>
+          <input class="text-input" type="text" name="title" id="title-input"
+                 maxlength="80" placeholder="Defaults to the file name">
+
+          <p class="form-error" id="form-error" hidden></p>
+
+          <div class="upload-actions">
+            <button class="button button-upload" type="submit" id="submit-btn">Upload</button>
+          </div>
+
+          <div class="progress" id="progress" hidden>
+            <div class="progress-top">
+              <p class="progress-status" id="progress-status">Uploading…</p>
+              <span class="progress-pct" id="progress-pct">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <div class="progress-stats">
+              <div class="progress-stat">
+                <span class="stat-label">SENT</span>
+                <span id="stat-loaded">0 KB</span>
+              </div>
+              <div class="progress-stat">
+                <span class="stat-label">SPEED</span>
+                <span id="stat-speed">…</span>
+              </div>
+              <div class="progress-stat">
+                <span class="stat-label">TIME LEFT</span>
+                <span id="stat-eta">calculating…</span>
+              </div>
+            </div>
+            <button class="button button-quiet" type="button" id="cancel-btn">Cancel upload</button>
+          </div>
+        </form>
+      </section>
+    {% endif %}
+  </main>
+
+  <footer class="footer">
+    <span>{{ site_name|upper }}</span>
+    <span>Built with Flask</span>
+  </footer>
+
+  {% if upload_state == 'allowed' %}
+  <script>
+    (function () {
+      var form = document.getElementById('upload-form');
+      var MAX_BYTES = Number(form.dataset.maxBytes);
+      var EXTS = ['mp4', 'webm', 'ogg'];
+
+      function $(id) { return document.getElementById(id); }
+      var fileInput = $('video-input'), dropzone = $('dropzone');
+      var dzTitle = $('dz-title'), dzSub = $('dz-sub');
+      var titleInput = $('title-input'), submitBtn = $('submit-btn');
+      var errorEl = $('form-error'), panel = $('progress');
+      var bar = $('progress-bar'), pct = $('progress-pct');
+      var statusEl = $('progress-status'), loadedEl = $('stat-loaded');
+      var speedEl = $('stat-speed'), etaEl = $('stat-eta'), cancelBtn = $('cancel-btn');
+
+      var DEFAULT_TITLE = dzTitle.textContent;
+      var DEFAULT_SUB = dzSub.textContent;
+      var xhr = null, uploading = false, samples = [];
+
+      submitBtn.disabled = true;
+
+      function fmtBytes(n) {
+        if (n >= 1073741824) return (n / 1073741824).toFixed(2) + ' GB';
+        if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+        return Math.max(1, Math.round(n / 1024)) + ' KB';
+      }
+
+      function fmtTime(s) {
+        if (!isFinite(s) || s < 0) return 'calculating…';
+        s = Math.ceil(s);
+        if (s < 60) return s + 's';
+        var m = Math.floor(s / 60);
+        if (m < 60) return m + 'm ' + (s % 60) + 's';
+        return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+      }
+
+      function showError(msg) {
+        errorEl.textContent = msg;
+        errorEl.hidden = !msg;
+      }
+
+      function validate(file) {
+        var ext = file.name.split('.').pop().toLowerCase();
+        if (EXTS.indexOf(ext) === -1) return 'Use an MP4, WebM, or Ogg video file.';
+        if (file.size > MAX_BYTES) {
+          return 'That file is ' + fmtBytes(file.size) + '. The maximum is ' + fmtBytes(MAX_BYTES) + '.';
+        }
+        return '';
+      }
+
+      function resetDropzone() {
+        dzTitle.textContent = DEFAULT_TITLE;
+        dzSub.textContent = DEFAULT_SUB;
+        submitBtn.disabled = true;
+      }
+
+      function pick() {
+        var file = fileInput.files[0];
+        if (!file) { resetDropzone(); return; }
+        var problem = validate(file);
+        if (problem) {
+          fileInput.value = '';
+          resetDropzone();
+          showError(problem);
+          return;
+        }
+        showError('');
+        dzTitle.textContent = file.name;
+        dzSub.textContent = fmtBytes(file.size) + ' · click to choose a different file';
+        submitBtn.disabled = false;
+      }
+
+      function setBusy(on) {
+        uploading = on;
+        panel.hidden = !on;
+        cancelBtn.hidden = !on;
+        fileInput.disabled = on;
+        titleInput.disabled = on;
+        submitBtn.disabled = on;
+        dropzone.classList.toggle('is-disabled', on);
+      }
+
+      function fail(message) {
+        setBusy(false);
+        showError(message);
+        submitBtn.disabled = !fileInput.files.length;
+      }
+
+      function onProgress(e) {
+        if (!e.lengthComputable) return;
+        var now = performance.now();
+        samples.push({ t: now, loaded: e.loaded });
+        while (samples.length > 2 && now - samples[0].t > 5000) samples.shift();
+
+        var first = samples[0], last = samples[samples.length - 1];
+        var seconds = (last.t - first.t) / 1000;
+        var speed = seconds > 0.4 ? (last.loaded - first.loaded) / seconds : 0;
+        var percent = Math.min(100, Math.floor(e.loaded / e.total * 100));
+
+        bar.style.width = percent + '%';
+        pct.textContent = percent + '%';
+        loadedEl.textContent = fmtBytes(e.loaded) + ' / ' + fmtBytes(e.total);
+        speedEl.textContent = speed ? fmtBytes(speed) + '/s' : '…';
+        etaEl.textContent = speed ? fmtTime((e.total - e.loaded) / speed) : 'calculating…';
+      }
+
+      function onDone() {
+        var res = null;
+        try { res = JSON.parse(xhr.responseText); } catch (err) {}
+        if (xhr.status >= 200 && xhr.status < 300 && res && res.ok) {
+          uploading = false;
+          statusEl.textContent = 'Done! Taking you to your video…';
+          etaEl.textContent = 'done';
+          window.location.href = res.redirect;
+          return;
+        }
+        fail((res && res.error) || 'Upload failed (error ' + xhr.status + ').');
+      }
+
+      fileInput.addEventListener('change', pick);
+
+      ['dragenter', 'dragover'].forEach(function (name) {
+        dropzone.addEventListener(name, function (e) {
+          e.preventDefault();
+          dropzone.classList.add('is-over');
+        });
+      });
+      ['dragleave', 'drop'].forEach(function (name) {
+        dropzone.addEventListener(name, function (e) {
+          e.preventDefault();
+          dropzone.classList.remove('is-over');
+        });
+      });
+      dropzone.addEventListener('drop', function (e) {
+        if (e.dataTransfer.files.length) {
+          fileInput.files = e.dataTransfer.files;
+          pick();
+        }
+      });
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (uploading) return;
+
+        var file = fileInput.files[0];
+        if (!file) { showError('Choose a video file first.'); return; }
+        var problem = validate(file);
+        if (problem) { showError(problem); return; }
+
+        showError('');
+        var data = new FormData(form);   // build before the inputs get disabled
+        samples = [];
+        bar.style.width = '0%';
+        pct.textContent = '0%';
+        loadedEl.textContent = '0 KB';
+        speedEl.textContent = '…';
+        etaEl.textContent = 'calculating…';
+        statusEl.textContent = 'Uploading…';
+        setBusy(true);
+
+        xhr = new XMLHttpRequest();
+        xhr.open('POST', form.action);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.upload.addEventListener('progress', onProgress);
+        xhr.upload.addEventListener('load', function () {
+          bar.style.width = '100%';
+          pct.textContent = '100%';
+          statusEl.textContent = 'Processing video…';
+          etaEl.textContent = 'almost done';
+        });
+        xhr.addEventListener('load', onDone);
+        xhr.addEventListener('error', function () {
+          fail('Network error. Check your connection and try again.');
+        });
+        xhr.addEventListener('abort', function () { fail('Upload cancelled.'); });
+        xhr.send(data);
+      });
+
+      cancelBtn.addEventListener('click', function () {
+        if (xhr) xhr.abort();
+      });
+
+      window.addEventListener('beforeunload', function (e) {
+        if (uploading) { e.preventDefault(); e.returnValue = ''; }
+      });
+    })();
+  </script>
+  {% endif %}
+</body>
+</html>

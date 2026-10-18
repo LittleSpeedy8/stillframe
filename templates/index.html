@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ site_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include '_header.html' %}
+
+  <main class="main-container">
+    {% if maintenance and is_staff %}
+      <p class="banner">Maintenance mode is on. Only staff can see the site right now.</p>
+    {% endif %}
+
+    <section class="player-section">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">NOW SHOWING</p>
+          <h1>{{ video.title if video else 'Nothing playing yet' }}</h1>
+        </div>
+        <span class="live-label"><span></span> LATEST UPLOAD</span>
+      </div>
+
+      <div class="player-frame">
+        {% if video %}
+          <video class="centered-player" controls preload="metadata">
+            <source src="{{ url_for('static', filename='videos/' ~ video.filename) }}"
+                    type="{{ video.mime }}">
+            Your browser does not support the video tag.
+          </video>
+        {% else %}
+          <div class="empty-player">
+            <div class="play-mark">&#9654;</div>
+            <p>No video has been uploaded yet.</p>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if video %}
+        <div class="video-meta">
+          <span>#{{ video.id }}</span>
+          <span>Uploaded by {{ video.uploader_name }}</span>
+          <span>{{ video.uploaded }}</span>
+          <a class="meta-link" href="{{ url_for('view_video', video_id=video.id) }}">
+            /videos/{{ video.id }}
+          </a>
+        </div>
+      {% endif %}
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-messages">
+            {% for category, message in messages %}
+              <p class="flash-message flash-{{ category }}">{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+    </section>
+
+    {% if recent %}
+      <section class="recent-section">
+        <div class="recent-head">
+          <div>
+            <p class="eyebrow">RECENT UPLOADS</p>
+            <h2>More to watch</h2>
+          </div>
+        </div>
+
+        <div class="video-grid">
+          {% for item in recent %}
+            <a class="video-card" href="{{ url_for('view_video', video_id=item.id) }}">
+              <span class="card-thumb-link">
+                <video class="card-thumb" muted playsinline preload="metadata"
+                       src="{{ url_for('static', filename='videos/' ~ item.filename) }}#t=0.5"></video>
+              </span>
+              <span class="card-body">
+                <span class="card-title">{{ item.title }}</span>
+                <span class="card-meta">
+                  #{{ item.id }} · {{ item.uploader_name }} · {{ item.uploaded }}
+                </span>
+              </span>
+            </a>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="upload-section">
+      {% if upload_state == 'allowed' %}
+        <div class="upload-copy">
+          <p class="eyebrow">UPLOAD</p>
+          <h2>Share a video</h2>
+          <p>MP4, WebM or Ogg, up to {{ max_upload_mb }} MB.</p>
+        </div>
+        <a class="button button-upload" href="{{ url_for('upload_file') }}">Upload a video</a>
+      {% elif upload_state == 'banned' %}
+        <div class="upload-copy">
+          <p class="eyebrow">UPLOAD</p>
+          <h2>Uploads disabled</h2>
+          <p>Your account is banned from uploading.</p>
+        </div>
+        <a class="button button-quiet" href="{{ url_for('upload_file') }}">Details</a>
+      {% elif upload_state == 'restricted' %}
+        <div class="upload-copy">
+          <p class="eyebrow">UPLOAD</p>
+          <h2>Uploads are restricted</h2>
+          <p>Ask an admin to add your Discord ID.</p>
+        </div>
+      {% else %}
+        <div class="upload-copy">
+          <p class="eyebrow">UPLOAD</p>
+          <h2>Log in to upload</h2>
+          <p>Sign in with Discord to add a video.</p>
+        </div>
+        <a class="button button-discord" href="{{ url_for('login') }}">Login with Discord</a>
+      {% endif %}
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>{{ site_name|upper }}</span>
+    <span>Built with Flask</span>
+  </footer>
+</body>
+</html>

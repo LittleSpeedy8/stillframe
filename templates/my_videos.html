@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My videos · {{ site_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% include '_header.html' %}
+
+  <main class="main-container page">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">YOUR LIBRARY</p>
+        <h1>My videos</h1>
+      </div>
+      <span class="live-label">{{ videos|length }} VIDEO{{ '' if videos|length == 1 else 'S' }}</span>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <p class="flash-message flash-{{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% if videos %}
+      <div class="video-grid">
+        {% for video in videos %}
+          <article class="video-card">
+            <a class="card-thumb-link" href="{{ url_for('view_video', video_id=video.id) }}">
+              <video class="card-thumb" muted playsinline preload="metadata"
+                     src="{{ url_for('static', filename='videos/' ~ video.filename) }}#t=0.5"></video>
+            </a>
+            <div class="card-body">
+              <h2 class="card-title">{{ video.title }}</h2>
+              <p class="card-meta">#{{ video.id }} · {{ video.uploaded }} · {{ video.size_mb }} MB</p>
+              <div class="card-actions">
+                <a class="button button-quiet" href="{{ url_for('view_video', video_id=video.id) }}">Open</a>
+                <form method="POST" action="{{ url_for('delete_video', video_id=video.id) }}"
+                      onsubmit="return confirm('Delete this video permanently?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="next" value="mine">
+                  <button class="button button-danger" type="submit">Delete</button>
+                </form>
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>You haven't uploaded any videos yet.</p>
+        {% if can_upload %}
+         <a class="button button-upload" href="{{ url_for('upload_file') }}">Upload a video</a>
+        {% else %}
+          <p class="muted">Ask an admin to add your Discord ID so you can upload.</p>
+        {% endif %}
+      </div>
+    {% endif %}
+  </main>
+
+  <footer class="footer">
+    <span>{{ site_name|upper }}</span>
+    <span>Built with Flask</span>
+  </footer>
+</body>
+</html>
